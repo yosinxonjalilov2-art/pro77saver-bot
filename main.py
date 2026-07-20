@@ -2,7 +2,7 @@ import os
 import telebot
 from yt_dlp import YoutubeDL
 
-BOT_TOKEN = "8766383241:AAHOsKX3AWDlJM95xv69vJGupv3l2Csou78"
+BOT_TOKEN = "8766383241:AAHosKX3AWD1JM95xv69vJGupv312Csou78"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -21,12 +21,12 @@ def start_cmd(message):
 @bot.message_handler(func=lambda message: True)
 def download_video(message):
     url = message.text.strip()
-    
+
     if not url.startswith("http"):
         bot.reply_to(message, "Iltimos, to'g'ri video ssilkasini (linkini) yuboring!")
         return
 
-    status_message = bot.reply_to(message, "⚡️ Video izlanmoqda va yuklab olinmoqda, kuting...")
+    status_message = bot.reply_to(message, "⚡ Video izlanmoqda va yuklab olinmoqda, kuting...")
 
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
@@ -35,7 +35,12 @@ def download_video(message):
         'format': 'best',
         'outtmpl': 'downloads/%(id)s.%(ext)s',
         'quiet': True,
-        'no_warnings': True
+        'no_warnings': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios']
+            }
+        }
     }
 
     try:
@@ -43,18 +48,19 @@ def download_video(message):
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        bot.edit_message_text("🚀 Video Telegram'ga yuklanmoqda...", chat_id=message.chat.id, message_id=status_message.message_id)
-        
         with open(filename, 'rb') as video:
-            bot.send_video(message.chat.id, video, caption="Mana siz so'ragan video! @pro77saver_bot")
-        
-        os.remove(filename)
+            bot.send_video(message.chat.id, video, reply_to_message_id=message.message_id)
+
+        # Faylni yuborgach, server joyini to'ldirmaslik uchun o'chiramiz
+        if os.path.exists(filename):
+            os.remove(filename)
+
         bot.delete_message(message.chat.id, status_message.message_id)
 
     except Exception as e:
         bot.edit_message_text(
-            "❌ **Xatolik yuz berdi!**\n\nSsilka noto'g'ri bo'lishi mumkin yoki ushbu video yuklanmadi.",
-            chat_id=message.chat.id, 
+            f"❌ Videoni yuklashda xatolik yuz berdi: {str(e)}",
+            chat_id=message.chat.id,
             message_id=status_message.message_id
         )
 
