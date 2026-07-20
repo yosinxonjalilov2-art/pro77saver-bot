@@ -21,6 +21,9 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 BOT_TOKEN = "8766383241:AAGO-riv8-LPm559x_RzVYN4Hc0dcgxx4Ww"
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# VIDEO TAGIGA YOZILADIGAN SHABLON MATN
+CAPTION_TEXT = "🎬 **Mana siz so'ragan video!**\n\n🤖 Bot: @pro77saver_bot"
+
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
     start_text = (
@@ -33,39 +36,26 @@ def start_cmd(message):
     )
     bot.reply_to(message, start_text, parse_mode="Markdown")
 
-# TIKTOK YUKLOVCHI API
-def download_tiktok(url):
+# TIKTOK YUKLOVCHI OCHIQ INFRATUZILMA
+def get_tiktok_direct(url):
     try:
-        api_url = "https://www.tikwm.com/api/"
-        response = requests.post(api_url, data={"url": url}, timeout=15)
-        res = response.json()
-        if res.get("code") == 0 and "data" in res:
-            return res["data"]["play"]
+        r = requests.post("https://lovetik.com/api/ajax/search", data={"query": url}, timeout=10).json()
+        if r.get("status") == "ok" and r.get("links"):
+            for link in r["links"]:
+                if link.get("type") == "mp4" or "watermark" not in link.get("t", "").lower():
+                    return link["a"]
     except Exception:
         pass
     return None
 
-# YOUTUBE YUKLOVCHI API
-def download_youtube_api(url):
+# YOUTUBE YUKLOVCHI INFRATUZILMA
+def get_youtube_direct(url):
     try:
-        api_url = f"https://api.v1.y2mate.guru/api/convert"
-        # Muqobil bepul ochiq API
-        cobalt_instances = [
-            "https://cobalt-api.kwiatek.xyz/api/json",
-            "https://api.cobalt.tools/api/json"
-        ]
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        payload = {"url": url, "vQuality": "720"}
-        
-        for instance in cobalt_instances:
-            try:
-                res = requests.post(instance, json=payload, headers=headers, timeout=10)
-                if res.status_code == 200:
-                    data = res.json()
-                    if data.get("status") in ["stream", "redirect"]:
-                        return data.get("url")
-            except Exception:
-                continue
+        r = requests.post("https://v3.y2mate.is/api/ajax/search", data={"url": url}, timeout=10).json()
+        if "formats" in r and "video" in r["formats"]:
+            for v in r["formats"]["video"]:
+                if v.get("url"):
+                    return v["url"]
     except Exception:
         pass
     return None
@@ -82,21 +72,27 @@ def download_video(message):
 
     # 1. TIKTOK
     if "tiktok.com" in url:
-        video_link = download_tiktok(url)
-        if video_link:
-            bot.send_video(message.chat.id, video_link, reply_to_message_id=message.message_id)
-            bot.delete_message(message.chat.id, status_message.message_id)
-            return
+        v_url = get_tiktok_direct(url)
+        if v_url:
+            try:
+                bot.send_video(message.chat.id, v_url, caption=CAPTION_TEXT, parse_mode="Markdown", reply_to_message_id=message.message_id)
+                bot.delete_message(message.chat.id, status_message.message_id)
+                return
+            except Exception:
+                pass
 
     # 2. YOUTUBE
     if "youtube.com" in url or "youtu.be" in url:
-        video_link = download_youtube_api(url)
-        if video_link:
-            bot.send_video(message.chat.id, video_link, reply_to_message_id=message.message_id)
-            bot.delete_message(message.chat.id, status_message.message_id)
-            return
+        v_url = get_youtube_direct(url)
+        if v_url:
+            try:
+                bot.send_video(message.chat.id, v_url, caption=CAPTION_TEXT, parse_mode="Markdown", reply_to_message_id=message.message_id)
+                bot.delete_message(message.chat.id, status_message.message_id)
+                return
+            except Exception:
+                pass
 
-    # 3. INSTAGRAM VA BOSHQALAR (YT-DLP)
+    # 3. INSTAGRAM VA ZAXIRA SIFATIDA YT-DLP
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -114,7 +110,7 @@ def download_video(message):
             filename = ydl.prepare_filename(info)
 
         with open(filename, 'rb') as video:
-            bot.send_video(message.chat.id, video, reply_to_message_id=message.message_id)
+            bot.send_video(message.chat.id, video, caption=CAPTION_TEXT, parse_mode="Markdown", reply_to_message_id=message.message_id)
 
         if os.path.exists(filename):
             os.remove(filename)
