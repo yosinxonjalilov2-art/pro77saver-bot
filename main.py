@@ -1,9 +1,26 @@
 import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from yt_dlp import YoutubeDL
 
-BOT_TOKEN = "8766383241:AAHosKX3AWD1JM95xv69vJGupv312Csou78"
+# Render o'chib qolmasligi va Port xatosi bermasligi uchun soxta veb-server
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot ishlamoqda!")
 
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
+# Veb-serverni orqada (background) ishga tushiramiz
+threading.Thread(target=run_dummy_server, daemon=True).start()
+
+# --- TELEGRAM BOT KODI ---
+BOT_TOKEN = "8766383241:AAHosKX3AWD1JM95xv69vJGupv312Csou78"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start'])
@@ -31,7 +48,7 @@ def download_video(message):
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
-ydl_opts = {
+    ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(id)s.%(ext)s',
         'quiet': True,
@@ -53,7 +70,6 @@ ydl_opts = {
         with open(filename, 'rb') as video:
             bot.send_video(message.chat.id, video, reply_to_message_id=message.message_id)
 
-        # Faylni yuborgach, server joyini to'ldirmaslik uchun o'chiramiz
         if os.path.exists(filename):
             os.remove(filename)
 
