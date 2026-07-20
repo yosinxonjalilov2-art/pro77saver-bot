@@ -33,22 +33,41 @@ def start_cmd(message):
     )
     bot.reply_to(message, start_text, parse_mode="Markdown")
 
+# TIKTOK YUKLOVCHI API
 def download_tiktok(url):
-    api_url = f"https://www.tikwm.com/api/?url={url}"
-    res = requests.get(api_url, timeout=15).json()
-    if res.get("code") == 0 and "data" in res:
-        return res["data"]["play"]
+    try:
+        api_url = "https://www.tikwm.com/api/"
+        response = requests.post(api_url, data={"url": url}, timeout=15)
+        res = response.json()
+        if res.get("code") == 0 and "data" in res:
+            return res["data"]["play"]
+    except Exception:
+        pass
     return None
 
+# YOUTUBE YUKLOVCHI API
 def download_youtube_api(url):
-    api_url = "https://api.cobalt.tools/api/json"
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    payload = {"url": url, "vQuality": "720"}
-    res = requests.post(api_url, json=payload, headers=headers, timeout=15)
-    if res.status_code == 200:
-        data = res.json()
-        if data.get("status") in ["stream", "redirect"]:
-            return data.get("url")
+    try:
+        api_url = f"https://api.v1.y2mate.guru/api/convert"
+        # Muqobil bepul ochiq API
+        cobalt_instances = [
+            "https://cobalt-api.kwiatek.xyz/api/json",
+            "https://api.cobalt.tools/api/json"
+        ]
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        payload = {"url": url, "vQuality": "720"}
+        
+        for instance in cobalt_instances:
+            try:
+                res = requests.post(instance, json=payload, headers=headers, timeout=10)
+                if res.status_code == 200:
+                    data = res.json()
+                    if data.get("status") in ["stream", "redirect"]:
+                        return data.get("url")
+            except Exception:
+                continue
+    except Exception:
+        pass
     return None
 
 @bot.message_handler(func=lambda message: True)
@@ -63,25 +82,19 @@ def download_video(message):
 
     # 1. TIKTOK
     if "tiktok.com" in url:
-        try:
-            video_link = download_tiktok(url)
-            if video_link:
-                bot.send_video(message.chat.id, video_link, reply_to_message_id=message.message_id)
-                bot.delete_message(message.chat.id, status_message.message_id)
-                return
-        except Exception:
-            pass
+        video_link = download_tiktok(url)
+        if video_link:
+            bot.send_video(message.chat.id, video_link, reply_to_message_id=message.message_id)
+            bot.delete_message(message.chat.id, status_message.message_id)
+            return
 
     # 2. YOUTUBE
     if "youtube.com" in url or "youtu.be" in url:
-        try:
-            video_link = download_youtube_api(url)
-            if video_link:
-                bot.send_video(message.chat.id, video_link, reply_to_message_id=message.message_id)
-                bot.delete_message(message.chat.id, status_message.message_id)
-                return
-        except Exception:
-            pass
+        video_link = download_youtube_api(url)
+        if video_link:
+            bot.send_video(message.chat.id, video_link, reply_to_message_id=message.message_id)
+            bot.delete_message(message.chat.id, status_message.message_id)
+            return
 
     # 3. INSTAGRAM VA BOSHQALAR (YT-DLP)
     if not os.path.exists('downloads'):
