@@ -5,7 +5,6 @@ import telebot
 from yt_dlp import YoutubeDL
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Server o'chib qolmasligi uchun
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -22,7 +21,6 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 BOT_TOKEN = "8766383241:AAGO-riv8-LPm559x_RzVYN4Hc0dcgxx4Ww"
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# VIDEO TAGIGA CHIQADIGAN MATN
 CAPTION_TEXT = "🎬 <b>Mana siz so'ragan video!</b>\n\n🤖 Bot: @pro77saver_bot"
 
 @bot.message_handler(commands=['start'])
@@ -37,7 +35,7 @@ def start_cmd(message):
     )
     bot.reply_to(message, start_text, parse_mode="HTML")
 
-# TikTok uchun tezkor yuklovchi
+# TikTok uchun API
 def get_tiktok_url(url):
     try:
         r = requests.post("https://www.tikwm.com/api/", data={"url": url}, timeout=7).json()
@@ -47,19 +45,36 @@ def get_tiktok_url(url):
         pass
     return None
 
-# YouTube uchun tezkor yuklovchi
+# YouTube uchun zaxirali API infratuzilmasi
 def get_youtube_url(url):
+    # 1-usul: Cobalt API ochiq serverlari
+    cobalt_servers = [
+        "https://api.cobalt.tools/api/json",
+        "https://cobalt-api.kwiatek.xyz/api/json"
+    ]
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    payload = {"url": url, "vQuality": "720"}
+    
+    for server in cobalt_servers:
+        try:
+            r = requests.post(server, json=payload, headers=headers, timeout=6)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("status") in ["stream", "redirect"]:
+                    return data.get("url")
+        except Exception:
+            continue
+
+    # 2-usul: Y2Mate alternatividan to'g'ri silka olish
     try:
-        cobalt_api = "https://api.cobalt.tools/api/json"
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        payload = {"url": url, "vQuality": "720"}
-        r = requests.post(cobalt_api, json=payload, headers=headers, timeout=7)
-        if r.status_code == 200:
-            data = r.json()
-            if data.get("status") in ["stream", "redirect"]:
-                return data.get("url")
+        r = requests.post("https://v3.y2mate.is/api/ajax/search", data={"url": url}, timeout=7).json()
+        if "formats" in r and "video" in r["formats"]:
+            for v in r["formats"]["video"]:
+                if v.get("url"):
+                    return v["url"]
     except Exception:
         pass
+
     return None
 
 @bot.message_handler(func=lambda message: True)
@@ -70,18 +85,15 @@ def download_video(message):
         bot.reply_to(message, "Iltimos, to'g'ri video ssilkasini yuboring!")
         return
 
-    # 1-BOSQICH: Izlanmoqda
     status_msg = bot.reply_to(message, "⚡ Video izlanmoqda...")
 
     direct_link = None
 
-    # Platformalarni tekshirish
     if "tiktok.com" in url:
         direct_link = get_tiktok_url(url)
     elif "youtube.com" in url or "youtu.be" in url:
         direct_link = get_youtube_url(url)
 
-    # Tezkor API orqali yuborish (2-3 soniya)
     if direct_link:
         try:
             bot.edit_message_text(
@@ -101,7 +113,7 @@ def download_video(message):
         except Exception:
             pass
 
-    # Instagram va zaxira yuklovchi (yt-dlp)
+    # Instagram va qo'shimcha zaxira mexanizmi (yt-dlp + player_client bypass)
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -110,7 +122,12 @@ def download_video(message):
         'outtmpl': 'downloads/%(id)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        'nocheckcertificate': True
+        'nocheckcertificate': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android']
+            }
+        }
     }
 
     try:
