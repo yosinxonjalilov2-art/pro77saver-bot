@@ -4,7 +4,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
 from yt_dlp import YoutubeDL
 
-# Render o'chib qolmasligi va Port xatosi bermasligi uchun soxta veb-server
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -16,11 +15,9 @@ def run_dummy_server():
     server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
     server.serve_forever()
 
-# Veb-serverni orqada (background) ishga tushiramiz
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# --- TELEGRAM BOT KODI ---
-BOT_TOKEN = "8766383241:AAHosKX3AWD1JM95xv69vJGupv312Csou78"
+BOT_TOKEN = "8766383241:AAGO-riv8-LPm559x_RzVYN4Hc0dcgxx4Ww"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start'])
