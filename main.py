@@ -1,8 +1,9 @@
 import os
 import threading
 import requests
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import telebot
+from yt_dlp import YoutubeDL
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -25,12 +26,31 @@ def start_cmd(message):
     start_text = (
         "🤖 **Pro 77 Saver - Universal Media Downloader!**\n\n"
         "Men quyidagi tarmoqlardan videolarni yuklab bera olaman:\n"
-        "📸 **Instagram**\n"
-        "🎵 **TikTok**\n"
-        "🔴 **YouTube**\n\n"
+        "📸 **Instagram** (Reels, Post)\n"
+        "🎵 **TikTok** (Watermark'siz)\n"
+        "🔴 **YouTube** (Shorts, Video)\n\n"
         "🔗 **Foydalanish:** Shunchaki video ssilkasini menga yuboring!"
     )
     bot.reply_to(message, start_text, parse_mode="Markdown")
+
+def download_tiktok(url):
+    api_url = f"https://api.tiklydown.eu.org/api/download?url={url}"
+    res = requests.get(api_url, timeout=15)
+    if res.status_code == 200:
+        data = res.json()
+        video_url = data.get("video", {}).get("noWatermark") or data.get("video", {}).get("watermark")
+        return video_url
+    return None
+
+def download_instagram(url):
+    api_url = f"https://api.v2.ddinstagram.com/oembed?url={url}"
+    # Zapas API orqali sinab ko'ramiz
+    api_backup = f"https://instagram-downloader-download-instagram-videos-stories1.p.rapidapi.com/index?url={url}"
+    try:
+        res = requests.get(f"https://ddinstagram.com/images/share.png", timeout=5) # ping
+    except:
+        pass
+    return None
 
 @bot.message_handler(func=lambda message: True)
 def download_video(message):
@@ -42,37 +62,57 @@ def download_video(message):
 
     status_message = bot.reply_to(message, "⚡ Video izlanmoqda va yuklab olinmoqda, kuting...")
 
-    try:
-        api_url = "https://api.cobalt.tools/api/json"
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "url": url,
-            "vQuality": "max"
-        }
-
-        response = requests.post(api_url, json=payload, headers=headers, timeout=20)
-        data = response.json()
-
-        if data.get("status") in ["stream", "redirect"]:
-            video_url = data.get("url")
-            bot.send_video(message.chat.id, video_url, reply_to_message_id=message.message_id)
-            bot.delete_message(message.chat.id, status_message.message_id)
-        elif data.get("status") == "picker":
-            picker_items = data.get("picker", [])
-            if picker_items and picker_items[0].get("type") == "video":
-                video_url = picker_items[0].get("url")
-                bot.send_video(message.chat.id, video_url, reply_to_message_id=message.message_id)
+    # 1. TIKTOK
+    if "tiktok.com" in url:
+        try:
+            video_link = download_tiktok(url)
+            if video_link:
+                bot.send_video(message.chat.id, video_link, reply_to_message_id=message.message_id)
                 bot.delete_message(message.chat.id, status_message.message_id)
-            else:
-                bot.edit_message_text("❌ Ushbu havoladan video topilmadi.", chat_id=message.chat.id, message_id=status_message.message_id)
-        else:
-            bot.edit_message_text("❌ Videoni yuklashning imkoni bo'lmadi yoki havola xato.", chat_id=message.chat.id, message_id=status_message.message_id)
+                return
+        except Exception as e:
+            pass
+
+    # 2. INSTAGRAM VA YOUTUBE UCHUN UNIVERSAL YT-DLP / DIRECT ENGINE
+    if not os.path.exists('downloads'):
+        os.makedirs('downloads')
+
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': 'downloads/%(id)s.%(ext)s',
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'geo_bypass': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv_embedded', 'android', 'ios']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        }
+    }
+
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+
+        with open(filename, 'rb') as video:
+            bot.send_video(message.chat.id, video, reply_to_message_id=message.message_id)
+
+        if os.path.exists(filename):
+            os.remove(filename)
+
+        bot.delete_message(message.chat.id, status_message.message_id)
 
     except Exception as e:
-        bot.edit_message_text(f"❌ Xatolik yuz berdi: {str(e)}", chat_id=message.chat.id, message_id=status_message.message_id)
+        bot.edit_message_text(
+            f"❌ Videoni yuklashda xatolik yuz berdi: {str(e)}",
+            chat_id=message.chat.id,
+            message_id=status_message.message_id
+        )
 
 if __name__ == "__main__":
     bot.infinity_polling()
