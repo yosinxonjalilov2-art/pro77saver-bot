@@ -5,6 +5,7 @@ import telebot
 from yt_dlp import YoutubeDL
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+# Server o'chib qolmasligi uchun
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -21,7 +22,7 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 BOT_TOKEN = "8766383241:AAGO-riv8-LPm559x_RzVYN4Hc0dcgxx4Ww"
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# HTML FORMATIDA BEXATO TAG-MATN
+# VIDEO TAGIGA CHIQADIGAN MATN
 CAPTION_TEXT = "🎬 <b>Mana siz so'ragan video!</b>\n\n🤖 Bot: @pro77saver_bot"
 
 @bot.message_handler(commands=['start'])
@@ -36,26 +37,25 @@ def start_cmd(message):
     )
     bot.reply_to(message, start_text, parse_mode="HTML")
 
-# 1. TIKTOK API
-def download_tiktok(url):
+# TikTok uchun tezkor yuklovchi
+def get_tiktok_url(url):
     try:
-        api_url = f"https://www.tikwm.com/api/?url={url}"
-        res = requests.get(api_url, timeout=12).json()
-        if res.get("code") == 0 and "data" in res:
-            return res["data"]["play"]
+        r = requests.post("https://www.tikwm.com/api/", data={"url": url}, timeout=7).json()
+        if r.get("code") == 0 and "data" in r:
+            return r["data"]["play"]
     except Exception:
         pass
     return None
 
-# 2. YOUTUBE API
-def download_youtube_api(url):
+# YouTube uchun tezkor yuklovchi
+def get_youtube_url(url):
     try:
-        api_url = "https://api.cobalt.tools/api/json"
+        cobalt_api = "https://api.cobalt.tools/api/json"
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         payload = {"url": url, "vQuality": "720"}
-        res = requests.post(api_url, json=payload, headers=headers, timeout=12)
-        if res.status_code == 200:
-            data = res.json()
+        r = requests.post(cobalt_api, json=payload, headers=headers, timeout=7)
+        if r.status_code == 200:
+            data = r.json()
             if data.get("status") in ["stream", "redirect"]:
                 return data.get("url")
     except Exception:
@@ -70,31 +70,38 @@ def download_video(message):
         bot.reply_to(message, "Iltimos, to'g'ri video ssilkasini yuboring!")
         return
 
-    status_message = bot.reply_to(message, "⚡ Video izlanmoqda va yuklab olinmoqda, kuting...")
+    # 1-BOSQICH: Izlanmoqda
+    status_msg = bot.reply_to(message, "⚡ Video izlanmoqda...")
 
-    # TIKTOK
+    direct_link = None
+
+    # Platformalarni tekshirish
     if "tiktok.com" in url:
-        v_link = download_tiktok(url)
-        if v_link:
-            try:
-                bot.send_video(message.chat.id, v_link, caption=CAPTION_TEXT, parse_mode="HTML", reply_to_message_id=message.message_id)
-                bot.delete_message(message.chat.id, status_message.message_id)
-                return
-            except Exception:
-                pass
+        direct_link = get_tiktok_url(url)
+    elif "youtube.com" in url or "youtu.be" in url:
+        direct_link = get_youtube_url(url)
 
-    # YOUTUBE
-    if "youtube.com" in url or "youtu.be" in url:
-        v_link = download_youtube_api(url)
-        if v_link:
-            try:
-                bot.send_video(message.chat.id, v_link, caption=CAPTION_TEXT, parse_mode="HTML", reply_to_message_id=message.message_id)
-                bot.delete_message(message.chat.id, status_message.message_id)
-                return
-            except Exception:
-                pass
+    # Tezkor API orqali yuborish (2-3 soniya)
+    if direct_link:
+        try:
+            bot.edit_message_text(
+                "📥 Video yuklandi va sizga yuborilmoqda...",
+                chat_id=message.chat.id,
+                message_id=status_msg.message_id
+            )
+            bot.send_video(
+                message.chat.id, 
+                direct_link, 
+                caption=CAPTION_TEXT, 
+                parse_mode="HTML", 
+                reply_to_message_id=message.message_id
+            )
+            bot.delete_message(message.chat.id, status_msg.message_id)
+            return
+        except Exception:
+            pass
 
-    # INSTAGRAM VA UNIVERSAL ZAXIRA (YT-DLP)
+    # Instagram va zaxira yuklovchi (yt-dlp)
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -107,23 +114,41 @@ def download_video(message):
     }
 
     try:
+        bot.edit_message_text(
+            "📥 Video yuklanmoqda...",
+            chat_id=message.chat.id,
+            message_id=status_msg.message_id
+        )
+
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
+        bot.edit_message_text(
+            "📤 Video sizga yuborilmoqda...",
+            chat_id=message.chat.id,
+            message_id=status_msg.message_id
+        )
+
         with open(filename, 'rb') as video:
-            bot.send_video(message.chat.id, video, caption=CAPTION_TEXT, parse_mode="HTML", reply_to_message_id=message.message_id)
+            bot.send_video(
+                message.chat.id, 
+                video, 
+                caption=CAPTION_TEXT, 
+                parse_mode="HTML", 
+                reply_to_message_id=message.message_id
+            )
 
         if os.path.exists(filename):
             os.remove(filename)
 
-        bot.delete_message(message.chat.id, status_message.message_id)
+        bot.delete_message(message.chat.id, status_msg.message_id)
 
     except Exception as e:
         bot.edit_message_text(
-            f"❌ Videoni yuklashda xatolik yuz berdi. Havolani qayta tekshirib yuboring.",
+            "❌ Videoni yuklab bo'lmadi. Havolani qayta tekshirib yuboring.",
             chat_id=message.chat.id,
-            message_id=status_message.message_id
+            message_id=status_msg.message_id
         )
 
 if __name__ == "__main__":
