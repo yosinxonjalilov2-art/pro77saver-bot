@@ -35,43 +35,57 @@ def start_cmd(message):
     )
     bot.reply_to(message, start_text, parse_mode="HTML")
 
-# TikTok uchun API
+# TikTok yuklovchi API
 def get_tiktok_url(url):
     try:
-        r = requests.post("https://www.tikwm.com/api/", data={"url": url}, timeout=7).json()
+        r = requests.post("https://www.tikwm.com/api/", data={"url": url}, timeout=8).json()
         if r.get("code") == 0 and "data" in r:
             return r["data"]["play"]
     except Exception:
         pass
     return None
 
-# YouTube uchun zaxirali API infratuzilmasi
+# YouTube uchun Maxsus KAFOLATLANGAN API
 def get_youtube_url(url):
-    # 1-usul: Cobalt API ochiq serverlari
-    cobalt_servers = [
-        "https://api.cobalt.tools/api/json",
-        "https://cobalt-api.kwiatek.xyz/api/json"
-    ]
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    payload = {"url": url, "vQuality": "720"}
-    
-    for server in cobalt_servers:
-        try:
-            r = requests.post(server, json=payload, headers=headers, timeout=6)
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("status") in ["stream", "redirect"]:
-                    return data.get("url")
-        except Exception:
-            continue
-
-    # 2-usul: Y2Mate alternatividan to'g'ri silka olish
+    # 1. Direct API servisi
     try:
-        r = requests.post("https://v3.y2mate.is/api/ajax/search", data={"url": url}, timeout=7).json()
-        if "formats" in r and "video" in r["formats"]:
-            for v in r["formats"]["video"]:
-                if v.get("url"):
-                    return v["url"]
+        api_endpoint = f"https://api.v1.y2mate.guru/api/convert"
+        # Boshqa ochiq cobalt node lar
+        nodes = [
+            "https://co.wuk.sh/api/json",
+            "https://cobalt.stream/api/json",
+            "https://api.cobalt.tools/api/json"
+        ]
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        payload = {"url": url, "vQuality": "720"}
+        
+        for node in nodes:
+            try:
+                res = requests.post(node, json=payload, headers=headers, timeout=6)
+                if res.status_code == 200:
+                    data = res.json()
+                    if data.get("status") in ["stream", "redirect"]:
+                        return data.get("url")
+            except Exception:
+                continue
+    except Exception:
+        pass
+        
+    # 2. Invidious proksi orqali yuklash
+    try:
+        # ID ni ajratib olish
+        video_id = ""
+        if "youtu.be/" in url:
+            video_id = url.split("youtu.be/")[1].split("?")[0]
+        elif "watch?v=" in url:
+            video_id = url.split("watch?v=")[1].split("&")[0]
+        elif "shorts/" in url:
+            video_id = url.split("shorts/")[1].split("?")[0]
+            
+        if video_id:
+            inv_res = requests.get(f"https://invidious.nerdvpn.de/api/v1/videos/{video_id}", timeout=6).json()
+            if "formatStreams" in inv_res and len(inv_res["formatStreams"]) > 0:
+                return inv_res["formatStreams"][-1]["url"]
     except Exception:
         pass
 
@@ -113,7 +127,7 @@ def download_video(message):
         except Exception:
             pass
 
-    # Instagram va qo'shimcha zaxira mexanizmi (yt-dlp + player_client bypass)
+    # Instagram va zaxira (yt-dlp)
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -122,12 +136,7 @@ def download_video(message):
         'outtmpl': 'downloads/%(id)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
-        'nocheckcertificate': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android']
-            }
-        }
+        'nocheckcertificate': True
     }
 
     try:
