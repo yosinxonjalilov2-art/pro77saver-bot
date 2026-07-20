@@ -21,41 +21,43 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 BOT_TOKEN = "8766383241:AAGO-riv8-LPm559x_RzVYN4Hc0dcgxx4Ww"
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# VIDEO TAGIGA YOZILADIGAN SHABLON MATN
-CAPTION_TEXT = "🎬 **Mana siz so'ragan video!**\n\n🤖 Bot: @pro77saver_bot"
+# HTML FORMATIDA BEXATO TAG-MATN
+CAPTION_TEXT = "🎬 <b>Mana siz so'ragan video!</b>\n\n🤖 Bot: @pro77saver_bot"
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
     start_text = (
-        "🤖 **Pro 77 Saver - Universal Media Downloader!**\n\n"
+        "🤖 <b>Pro 77 Saver - Universal Media Downloader!</b>\n\n"
         "Men quyidagi tarmoqlardan videolarni yuklab bera olaman:\n"
-        "📸 **Instagram**\n"
-        "🎵 **TikTok**\n"
-        "🔴 **YouTube**\n\n"
-        "🔗 **Foydalanish:** Shunchaki video ssilkasini menga yuboring!"
+        "📸 <b>Instagram</b>\n"
+        "🎵 <b>TikTok</b>\n"
+        "🔴 <b>YouTube</b>\n\n"
+        "🔗 <b>Foydalanish:</b> Shunchaki video ssilkasini menga yuboring!"
     )
-    bot.reply_to(message, start_text, parse_mode="Markdown")
+    bot.reply_to(message, start_text, parse_mode="HTML")
 
-# TIKTOK YUKLOVCHI OCHIQ INFRATUZILMA
-def get_tiktok_direct(url):
+# 1. TIKTOK API
+def download_tiktok(url):
     try:
-        r = requests.post("https://lovetik.com/api/ajax/search", data={"query": url}, timeout=10).json()
-        if r.get("status") == "ok" and r.get("links"):
-            for link in r["links"]:
-                if link.get("type") == "mp4" or "watermark" not in link.get("t", "").lower():
-                    return link["a"]
+        api_url = f"https://www.tikwm.com/api/?url={url}"
+        res = requests.get(api_url, timeout=12).json()
+        if res.get("code") == 0 and "data" in res:
+            return res["data"]["play"]
     except Exception:
         pass
     return None
 
-# YOUTUBE YUKLOVCHI INFRATUZILMA
-def get_youtube_direct(url):
+# 2. YOUTUBE API
+def download_youtube_api(url):
     try:
-        r = requests.post("https://v3.y2mate.is/api/ajax/search", data={"url": url}, timeout=10).json()
-        if "formats" in r and "video" in r["formats"]:
-            for v in r["formats"]["video"]:
-                if v.get("url"):
-                    return v["url"]
+        api_url = "https://api.cobalt.tools/api/json"
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        payload = {"url": url, "vQuality": "720"}
+        res = requests.post(api_url, json=payload, headers=headers, timeout=12)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("status") in ["stream", "redirect"]:
+                return data.get("url")
     except Exception:
         pass
     return None
@@ -70,29 +72,29 @@ def download_video(message):
 
     status_message = bot.reply_to(message, "⚡ Video izlanmoqda va yuklab olinmoqda, kuting...")
 
-    # 1. TIKTOK
+    # TIKTOK
     if "tiktok.com" in url:
-        v_url = get_tiktok_direct(url)
-        if v_url:
+        v_link = download_tiktok(url)
+        if v_link:
             try:
-                bot.send_video(message.chat.id, v_url, caption=CAPTION_TEXT, parse_mode="Markdown", reply_to_message_id=message.message_id)
+                bot.send_video(message.chat.id, v_link, caption=CAPTION_TEXT, parse_mode="HTML", reply_to_message_id=message.message_id)
                 bot.delete_message(message.chat.id, status_message.message_id)
                 return
             except Exception:
                 pass
 
-    # 2. YOUTUBE
+    # YOUTUBE
     if "youtube.com" in url or "youtu.be" in url:
-        v_url = get_youtube_direct(url)
-        if v_url:
+        v_link = download_youtube_api(url)
+        if v_link:
             try:
-                bot.send_video(message.chat.id, v_url, caption=CAPTION_TEXT, parse_mode="Markdown", reply_to_message_id=message.message_id)
+                bot.send_video(message.chat.id, v_link, caption=CAPTION_TEXT, parse_mode="HTML", reply_to_message_id=message.message_id)
                 bot.delete_message(message.chat.id, status_message.message_id)
                 return
             except Exception:
                 pass
 
-    # 3. INSTAGRAM VA ZAXIRA SIFATIDA YT-DLP
+    # INSTAGRAM VA UNIVERSAL ZAXIRA (YT-DLP)
     if not os.path.exists('downloads'):
         os.makedirs('downloads')
 
@@ -110,7 +112,7 @@ def download_video(message):
             filename = ydl.prepare_filename(info)
 
         with open(filename, 'rb') as video:
-            bot.send_video(message.chat.id, video, caption=CAPTION_TEXT, parse_mode="Markdown", reply_to_message_id=message.message_id)
+            bot.send_video(message.chat.id, video, caption=CAPTION_TEXT, parse_mode="HTML", reply_to_message_id=message.message_id)
 
         if os.path.exists(filename):
             os.remove(filename)
@@ -119,7 +121,7 @@ def download_video(message):
 
     except Exception as e:
         bot.edit_message_text(
-            f"❌ Videoni yuklashda xatolik yuz berdi: {str(e)}",
+            f"❌ Videoni yuklashda xatolik yuz berdi. Havolani qayta tekshirib yuboring.",
             chat_id=message.chat.id,
             message_id=status_message.message_id
         )
