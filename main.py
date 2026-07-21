@@ -20,7 +20,7 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --------------------------------------------------
-BOT_TOKEN = "8766383241:AAE2qEIj-zjEvhKV6OoOg9WKAbQzevPrrlM"  # BotFather tokeningizni kiriting
+BOT_TOKEN = "8766383241:AAE2qEIj-zjEvhKV6OoOg9WKAbQzevPrrlM"  # O'zingizning tokeningizni yozing
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_links = {}
@@ -71,7 +71,6 @@ def process_download(call):
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
 
-            bot.edit_message_text("📤 <b>Video tayyor! Sizga yuborilmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
             caption_text = f"✅ <b>Mana siz so'ragan video!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
 
             with open(filename, 'rb') as video:
@@ -83,7 +82,7 @@ def process_download(call):
         except Exception:
             bot.send_message(chat_id, "❌ Videoni yuklashda xatolik bo'ldi. Havolani tekshiring.")
 
-    # 2. AUDIO YUKLASH (Tugma bilan)
+    # 2. AUDIO YUKLASH (Kafolatli tugma ko'rinishi)
     elif call.data == "dl_audio":
         bot.edit_message_text("⏳ <b>Audio yuklanmoqda, kuting...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
         ydl_opts = {
@@ -96,16 +95,18 @@ def process_download(call):
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
 
-            bot.edit_message_text("📤 <b>Audio tayyor! Sizga yuborilmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
             caption_text = f"✅ <b>Mana siz so'ragan audio!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
 
-            # Pastiga "To'liq versiyani topish" tugmasi qo'shildi
+            # 1-qadam: Audioni yuboramiz
+            with open(filename, 'rb') as audio:
+                bot.send_audio(chat_id, audio, caption=caption_text, parse_mode="HTML")
+
+            # 2-qadam: Tugmani alohida xabar qilib tagidan yuboramiz (endi yo'qolib qolmaydi!)
             full_markup = InlineKeyboardMarkup()
             btn_full = InlineKeyboardButton("🔍 To'liq versiyani topish (Full MP3)", callback_data="dl_full")
             full_markup.add(btn_full)
 
-            with open(filename, 'rb') as audio:
-                bot.send_audio(chat_id, audio, caption=caption_text, reply_markup=full_markup, parse_mode="HTML")
+            bot.send_message(chat_id, "👇 <i>Ushbu musiqaning to'liq versiyasini yuklab olishni istaysizmi?</i>", reply_markup=full_markup, parse_mode="HTML")
 
             bot.delete_message(chat_id, status_msg_id)
             if os.path.exists(filename): os.remove(filename)
@@ -113,17 +114,15 @@ def process_download(call):
         except Exception:
             bot.send_message(chat_id, "❌ Audioni ajratishda xatolik bo'ldi.")
 
-    # 3. TO'LIQ MUSIQANI TOPISH (Xatosiz va tezkor qidiruv)
+    # 3. TO'LIQ MUSIQANI TOPISH
     elif call.data == "dl_full":
         status_msg = bot.send_message(chat_id, "🔍 <b>Qo'shiqning to'liq versiyasi qidirilmoqda...</b>", parse_mode="HTML")
         
         try:
-            # TikTok/Instagram postining ma'lumotini olish
             with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
                 info = ydl.extract_info(url, download=False)
                 track_title = info.get('track') or info.get('title') or info.get('description', '')
 
-            # Agar nom juda uzun bo'lsa, birinchi qismini olamiz
             clean_title = track_title.split('\n')[0][:50] if track_title else "trend music"
             search_query = f"ytsearch1:{clean_title} full audio"
 
