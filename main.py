@@ -1,4 +1,5 @@
 import os
+import time
 import threading
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -20,7 +21,7 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --------------------------------------------------
-# BUYERGA BOTFATHER'DAN OLGAN TOKENINGIZNI YOZING!
+# BUYERGA OZINGIZNING TOKENINGIZNI YOZING!
 BOT_TOKEN = "8766383241:AAFhA6zLr-GswgjKVFNOUvPdUFe978WxYMM"  
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -64,7 +65,7 @@ def process_download(call):
 
     # 1. VIDEO YUKLASH
     if call.data == "dl_video":
-        bot.edit_message_text("⏳ <b>Video yuklanmoqda, kuting...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
+        bot.edit_message_text("🔍 <b>Video izlanmoqda va yuklanmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
         ydl_opts = {
             'format': 'best',
             'outtmpl': f'downloads/{chat_id}_video.%(ext)s',
@@ -74,6 +75,10 @@ def process_download(call):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
+
+            # Yuklanib bo'lgandan keyingi bosqichiy matn:
+            bot.edit_message_text("📤 <b>Video yuklandi, sizga yuborilmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
+            time.sleep(1) # Matn o'qilishi uchun 1 soniya kutiladi
 
             caption_text = f"✅ <b>Mana siz so'ragan video!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
 
@@ -88,7 +93,7 @@ def process_download(call):
 
     # 2. AUDIO YUKLASH
     elif call.data == "dl_audio":
-        bot.edit_message_text("⏳ <b>Audio yuklanmoqda, kuting...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
+        bot.edit_message_text("🔍 <b>Audio izlanmoqda va ajratilmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': f'downloads/{chat_id}_audio.%(ext)s',
@@ -98,6 +103,10 @@ def process_download(call):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
+
+            # Yuklanib bo'lgandan keyingi bosqichiy matn:
+            bot.edit_message_text("📤 <b>Audio yuklandi, sizga yuborilmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
+            time.sleep(1)
 
             caption_text = f"✅ <b>Mana siz so'ragan audio!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
 
