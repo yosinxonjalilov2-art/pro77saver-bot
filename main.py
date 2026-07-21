@@ -22,7 +22,7 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --------------------------------------------------
 # BUYERGA OZINGIZNING TOKENINGIZNI YOZING!
-BOT_TOKEN = "8766383241:AAFhA6zLr-GswgjKVFNOUvPdUFe978WxYMM"  
+BOT_TOKEN = "8766383241:AAGHrXZKshTODsCgTQKbq3Fts-5RxB1m6P8"  
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_links = {}
