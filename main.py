@@ -20,7 +20,7 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --------------------------------------------------
-BOT_TOKEN = "8766383241:AAHPJW-s2ZuPx4lpNSeywZXszIyi9tE8pks"  # BotFather tokeningiz
+BOT_TOKEN = "8766383241:AAHyXyInxH-1DQVgbt1fvLMsim_Socr6aVs"  # BotFather tokeningiz
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_links = {}
