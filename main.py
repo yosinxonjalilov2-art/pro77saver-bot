@@ -1,16 +1,16 @@
 import os
 import threading
-import requests
 import telebot
-from yt_dlp import YoutubeDL
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import yt_dlp
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Server o'chib qolmasligi uchun
+# 1. Render serverini hushyor tutish uchun Dummy Server
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"OK")
+        self.wfile.write(b"OK - Media Downloader Bot is running")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 10000))
@@ -19,130 +19,90 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-BOT_TOKEN = "8766383241:AAGO-riv8-LPm559x_RzVYN4Hc0dcgxx4Ww"
+# --------------------------------------------------
+BOT_TOKEN = "8766383241:AAGO-riv8-LPm559x_RzVYN4Hc0dcgxx4Ww"  # BotFather tokeningiz
 bot = telebot.TeleBot(BOT_TOKEN)
 
-CAPTION_TEXT = "🎬 Mana siz so'ragan video!\n\n🤖 Bot: @pro77saver_bot"
+# Vaqtinchalik havolalarni saqlash
+user_links = {}
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
-    start_text = (
-        "🤖 Pro 77 Saver - Media Downloader!\n\n"
-        "Men quyidagi tarmoqlardan videolarni yuklab bera olaman:\n"
-        "📸 Instagram\n"
-        "🎵 TikTok\n\n"
-        "🔗 Foydalanish: Shunchaki video ssilkasini menga yuboring!"
+    bot.reply_to(
+        message, 
+        "👋 **Salom! Men Video va Audio yuklovchi botman.**\n\n"
+        "Menga TikTok, Instagram yoki YouTube havolasini (linkini) yuboring!",
+        parse_mode="Markdown"
     )
-    bot.reply_to(message, start_text)
 
-# TikTok uchun 1-API (TikWM)
-def get_tiktok_tikwm(url):
-    try:
-        r = requests.post("https://www.tikwm.com/api/", data={"url": url}, timeout=10).json()
-        if r.get("code") == 0 and "data" in r:
-            return r["data"]["play"]
-    except Exception:
-        pass
-    return None
-
-# TikTok uchun 2-API (SSSTik Zaxira)
-def get_tiktok_ssstik(url):
-    try:
-        r = requests.post("https://ssstik.io/abc?url=dl", data={"id": url, "locale": "en", "tt": 0}, timeout=10)
-        if "href" in r.text:
-            import re
-            links = re.findall(r'href="(https://ticket\.ssstik\.io/[^"]+)"', r.text)
-            if links:
-                return links[0]
-    except Exception:
-        pass
-    return None
-
-@bot.message_handler(func=lambda message: True)
-def download_video(message):
+# LINK KELGANDA TUGMALARNI CHIQARISH
+@bot.message_handler(func=lambda message: message.text and ("http://" in message.text or "https://" in message.text))
+def handle_link(message):
     url = message.text.strip()
+    user_links[message.chat.id] = url
 
-    if not url.startswith("http"):
-        bot.reply_to(message, "Iltimos, to'g'ri video ssilkasini yuboring!")
+    markup = InlineKeyboardMarkup()
+    btn_video = InlineKeyboardButton("🎬 Video (MP4)", callback_data="dl_video")
+    btn_audio = InlineKeyboardButton("🎵 Audio (MP3)", callback_data="dl_audio")
+    markup.add(btn_video, btn_audio)
+
+    bot.reply_to(message, "📥 **Formatni tanlang:**", reply_markup=markup, parse_mode="Markdown")
+
+# TUGMALAR BOSILGANDA ISHLAYDIGAN QISM
+@bot.callback_query_handler(func=lambda call: call.data in ["dl_video", "dl_audio"])
+def process_download(call):
+    chat_id = call.message.chat.id
+    url = user_links.get(chat_id)
+
+    if not url:
+        bot.answer_callback_query(call.id, "❌ Havola topilmadi, iltimos qaytadan yuboring.")
         return
 
-    # TikToK va Instagram'dan boshqa ssilka bo'lsa ogohlantirish
-    if "tiktok.com" not in url and "instagram.com" not in url:
-        bot.reply_to(message, "Hozircha faqat Instagram va TikTok havolalarini yuborishingiz mumkin!")
-        return
+    bot.edit_message_text("⏳ Yuklanmoqda, kuting...", chat_id=chat_id, message_id=call.message.message_id)
 
-    status_msg = bot.reply_to(message, "⚡ Video izlanmoqda...")
-
-    # --- TIKTOK YUKLASH ---
-    if "tiktok.com" in url:
-        # 1-urinish
-        direct_link = get_tiktok_tikwm(url)
-        # 2-urinish (agar 1-si ishlamasa)
-        if not direct_link:
-            direct_link = get_tiktok_ssstik(url)
-
-        if direct_link:
-            try:
-                bot.edit_message_text("📥 Video yuklandi va sizga yuborilmoqda...", chat_id=message.chat.id, message_id=status_msg.message_id)
-                bot.send_video(
-                    message.chat.id, 
-                    direct_link, 
-                    caption=CAPTION_TEXT, 
-                    reply_to_message_id=message.message_id
-                )
-                bot.delete_message(message.chat.id, status_msg.message_id)
-                return
-            except Exception:
-                pass
-
-    # --- INSTAGRAM YUKLASH (va TikTok zaxira) ---
-    if not os.path.exists('downloads'):
-        os.makedirs('downloads')
-
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': 'downloads/%(id)s.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True
-    }
-
-    try:
-        bot.edit_message_text("📥 Video yuklanmoqda...", chat_id=message.chat.id, message_id=status_msg.message_id)
-
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-
-        bot.edit_message_text("📤 Video sizga yuborilmoqda...", chat_id=message.chat.id, message_id=status_msg.message_id)
-
-        # Fayl hajmini tekshirish (Telegram 50MB cheklovi)
-        file_size_mb = os.path.getsize(filename) / (1024 * 1024)
-        if file_size_mb > 49:
-            bot.edit_message_text("❌ Video hajmi juda katta (50MB dan yuqori). Telegram yuborishga ruxsat bermaydi.", chat_id=message.chat.id, message_id=status_msg.message_id)
+    if call.data == "dl_video":
+        ydl_opts = {
+            'format': 'best',
+            'outtmpl': f'downloads/{chat_id}_video.%(ext)s',
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+            
+            with open(filename, 'rb') as video:
+                bot.send_video(chat_id, video, caption="🎬 Botingiz orqali yuklab olindi!")
+            
             if os.path.exists(filename):
                 os.remove(filename)
-            return
+        except Exception as e:
+            bot.send_message(chat_id, f"❌ Videoni yuklashda xatolik bo'ldi. Havolani tekshiring.")
 
-        with open(filename, 'rb') as video:
-            bot.send_video(
-                message.chat.id, 
-                video, 
-                caption=CAPTION_TEXT, 
-                reply_to_message_id=message.message_id
-            )
+    elif call.data == "dl_audio":
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': f'downloads/{chat_id}_audio.%(ext)s',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = f"downloads/{chat_id}_audio.mp3"
 
-        if os.path.exists(filename):
-            os.remove(filename)
-
-        bot.delete_message(message.chat.id, status_msg.message_id)
-
-    except Exception:
-        bot.edit_message_text(
-            "❌ Videoni yuklab bo'lmadi. Video yopiq (private) profilda bo'lishi yoki havola noto'g'ri bo'lishi mumkin.",
-            chat_id=message.chat.id,
-            message_id=status_msg.message_id
-        )
+            if os.path.exists(filename):
+                with open(filename, 'rb') as audio:
+                    bot.send_audio(chat_id, audio, caption="🎵 Botingiz orqali MP3 qilindi!")
+                os.remove(filename)
+            else:
+                bot.send_message(chat_id, "❌ Audioni tayyorlashda xatolik bo'ldi.")
+        except Exception as e:
+            bot.send_message(chat_id, f"❌ Audioni ajratishda xatolik bo'ldi. Havolani tekshiring.")
 
 if __name__ == "__main__":
-    bot.infinity_polling()
+    if not os.path.exists('downloads'):
+        os.makedirs('downloads')
+    bot.infinity_polling(skip_pending=True)
