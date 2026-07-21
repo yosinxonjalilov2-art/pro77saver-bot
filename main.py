@@ -4,7 +4,7 @@ import asyncio
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
-from async_shazam import Shazam
+from shazamio import Shazam
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # 1. Render serverini uyg'oq tutish uchun HTTP Server
@@ -30,7 +30,7 @@ user_links = {}
 # Shazam orqali qo'shiqni aniqlash
 async def recognize_song(file_path):
     shazam = Shazam()
-    out = await shazam.recognize_song(file_path)
+    out = await shazam.recognize(file_path)
     return out
 
 @bot.message_handler(commands=['start'])
