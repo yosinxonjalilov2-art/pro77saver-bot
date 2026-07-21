@@ -21,7 +21,7 @@ threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --------------------------------------------------
 # BUYERGA BOTFATHER'DAN OLGAN TOKENINGIZNI YOZING!
-BOT_TOKEN = "8766383241:AAE2qEIj-zjEvhKV6OoOg9WKAbQzevPrrlM"  
+BOT_TOKEN = "8766383241:AAFhA6zLr-GswgjKVFNOUvPdUFe978WxYMM"  
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_links = {}
