@@ -22,16 +22,23 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --------------------------------------------------
-BOT_TOKEN = "8766383241:AAE2qEIj-zjEvhKV6OoOg9WKAbQzevPrrlM"  # BotFather tokeningizni kiriting
+BOT_TOKEN = "8766383241:AAE2qEIj-zjEvhKV6OoOg9WKAbQzevPrrlM"  # BotFather tokeningiz
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_links = {}
 
-# Shazam orqali qo'shiqni aniqlash
+# Shazam funksiyasi uchun xavfsiz async-loop
 async def recognize_song(file_path):
     shazam = Shazam()
     out = await shazam.recognize(file_path)
     return out
+
+def get_shazam_result(file_path):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    res = loop.run_until_complete(recognize_song(file_path))
+    loop.close()
+    return res
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
@@ -84,7 +91,7 @@ def process_download(call):
             bot.delete_message(chat_id, status_msg_id)
             if os.path.exists(filename): os.remove(filename)
 
-        except Exception:
+        except Exception as e:
             bot.send_message(chat_id, "❌ Videoni yuklashda xatolik bo'ldi. Havolani tekshiring.")
 
     # 2. AUDIO YUKLASH
@@ -109,37 +116,44 @@ def process_download(call):
             bot.delete_message(chat_id, status_msg_id)
             if os.path.exists(filename): os.remove(filename)
 
-        except Exception:
+        except Exception as e:
             bot.send_message(chat_id, "❌ Audioni ajratishda xatolik bo'ldi.")
 
-    # 3. TO'LIQ MUSIQANI TOPISH
+    # 3. TO'LIQ MUSIQANI SHAZAM ORQALI TOPISH
     elif call.data == "dl_full":
-        bot.send_message(chat_id, "🔍 <b>Qo'shiq Shazam orqali tahlil qilinmoqda...</b>", parse_mode="HTML")
+        status_msg = bot.send_message(chat_id, "🔍 <b>Qo'shiq Shazam orqali tahlil qilinmoqda...</b>", parse_mode="HTML")
         
-        temp_audio_opts = {'format': 'bestaudio/best', 'outtmpl': f'downloads/{chat_id}_shazam.%(ext)s', 'quiet': True}
+        temp_opts = {'format': 'bestaudio/best', 'outtmpl': f'downloads/{chat_id}_shazam.%(ext)s', 'quiet': True}
         try:
-            with yt_dlp.YoutubeDL(temp_audio_opts) as ydl:
+            # 1. Videodan audioni yuklab olamiz
+            with yt_dlp.YoutubeDL(temp_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 temp_filename = ydl.prepare_filename(info)
 
-            shazam_res = asyncio.run(recognize_song(temp_filename))
-            if os.path.exists(temp_filename): os.remove(temp_filename)
+            # 2. Shazam orqali qo'shiqni aniqlaymiz
+            shazam_res = get_shazam_result(temp_filename)
+            if os.path.exists(temp_filename): 
+                os.remove(temp_filename)
 
             track_info = shazam_res.get('track')
             if not track_info:
-                bot.send_message(chat_id, "❌ Afsuski, bu videodagi musiqani aniqlab bo'lmadi.")
+                bot.edit_message_text("❌ Afsuski, bu videodagi musiqani Shazam topa olmadi.", chat_id=chat_id, message_id=status_msg.message_id)
                 return
 
             song_title = track_info.get('title', '')
             song_artist = track_info.get('subtitle', '')
             search_query = f"ytsearch1:{song_artist} - {song_title}"
 
-            status_msg = bot.send_message(chat_id, f"🎧 <b>Topildi:</b> {song_artist} - {song_title}\n\n⏳ <b>To'liq versiyasi yuklanmoqda...</b>", parse_mode="HTML")
+            bot.edit_message_text(f"🎧 <b>Topildi:</b> {song_artist} - {song_title}\n\n⏳ <b>To'liq versiyasi yuklanmoqda...</b>", chat_id=chat_id, message_id=status_msg.message_id, parse_mode="HTML")
 
-            full_audio_opts = {'format': 'bestaudio/best', 'outtmpl': f'downloads/{chat_id}_full.%(ext)s', 'quiet': True}
-            with yt_dlp.YoutubeDL(full_audio_opts) as ydl:
-                info = ydl.extract_info(search_query, download=True)
-                full_filename = ydl.prepare_filename(info['entries'][0])
+            # 3. YouTube'dan to'liq qo'shiqni yuklaymiz
+            full_opts = {'format': 'bestaudio/best', 'outtmpl': f'downloads/{chat_id}_full.%(ext)s', 'quiet': True}
+            with yt_dlp.YoutubeDL(full_opts) as ydl:
+                search_res = ydl.extract_info(search_query, download=True)
+                if 'entries' in search_res and len(search_res['entries']) > 0:
+                    full_filename = ydl.prepare_filename(search_res['entries'][0])
+                else:
+                    full_filename = ydl.prepare_filename(search_res)
 
             caption_text = f"✅ <b>To'liq qo'shiq yuklab olindi!</b>\n🎵 <b>Nomi:</b> {song_artist} - {song_title}\n\n🤖 <b>Bot:</b> @{bot_username}"
 
@@ -149,8 +163,8 @@ def process_download(call):
             bot.delete_message(chat_id, status_msg.message_id)
             if os.path.exists(full_filename): os.remove(full_filename)
 
-        except Exception:
-            bot.send_message(chat_id, "❌ To'liq musiqani topishda xatolik yuz berdi.")
+        except Exception as err:
+            bot.send_message(chat_id, "❌ To'liq musiqani topishda xatolik yuz berdi. Boshqa video bilan sinab ko'ring.")
 
 if __name__ == "__main__":
     if not os.path.exists('downloads'):
