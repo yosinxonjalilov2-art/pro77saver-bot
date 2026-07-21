@@ -1,13 +1,13 @@
 import os
 import threading
+import asyncio
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
-from shazamio import Shazam
-import asyncio
+from async_shazam import Shazam
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# 1. Render serverini uxlab qolmasligi uchun HTTP Server
+# 1. Render serverini uyg'oq tutish uchun HTTP Server
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -27,10 +27,10 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 user_links = {}
 
-# Shazam orqali musiqani tanib olish funksiyasi
+# Shazam orqali qo'shiqni aniqlash
 async def recognize_song(file_path):
     shazam = Shazam()
-    out = await shazam.recognize(file_path)
+    out = await shazam.recognize_song(file_path)
     return out
 
 @bot.message_handler(commands=['start'])
@@ -42,7 +42,6 @@ def start_cmd(message):
         parse_mode="HTML"
     )
 
-# LINK KELGANDA TUGMALARNI CHIQARISH
 @bot.message_handler(func=lambda message: message.text and ("http://" in message.text or "https://" in message.text))
 def handle_link(message):
     url = message.text.strip()
@@ -55,7 +54,6 @@ def handle_link(message):
 
     bot.reply_to(message, "📥 <b>Formatni tanlang:</b>", reply_markup=markup, parse_mode="HTML")
 
-# TUGMALAR BOSILGANDA ISHLAYDIGAN QISM
 @bot.callback_query_handler(func=lambda call: call.data in ["dl_video", "dl_audio", "dl_full"])
 def process_download(call):
     chat_id = call.message.chat.id
@@ -78,7 +76,7 @@ def process_download(call):
                 filename = ydl.prepare_filename(info)
 
             bot.edit_message_text("📤 <b>Video tayyor! Sizga yuborilmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
-            caption_text = f"✅ <b>Mana siz so'ragan video yuklab olindi!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
+            caption_text = f"✅ <b>Mana siz so'ragan video!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
 
             with open(filename, 'rb') as video:
                 bot.send_video(chat_id, video, caption=caption_text, parse_mode="HTML")
@@ -89,7 +87,7 @@ def process_download(call):
         except Exception:
             bot.send_message(chat_id, "❌ Videoni yuklashda xatolik bo'ldi. Havolani tekshiring.")
 
-    # 2. QISQA AUDIO YUKLASH (Audio yuborilgach ostida to'liq versiya tugmasi chiqadi)
+    # 2. AUDIO YUKLASH
     elif call.data == "dl_audio":
         bot.edit_message_text("⏳ <b>Audio yuklanmoqda, kuting...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
         ydl_opts = {'format': 'bestaudio/best', 'outtmpl': f'downloads/{chat_id}_audio.%(ext)s', 'quiet': True}
@@ -99,9 +97,8 @@ def process_download(call):
                 filename = ydl.prepare_filename(info)
 
             bot.edit_message_text("📤 <b>Audio tayyor! Sizga yuborilmoqda...</b>", chat_id=chat_id, message_id=status_msg_id, parse_mode="HTML")
-            caption_text = f"✅ <b>Mana siz so'ragan audio yuklab olindi!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
+            caption_text = f"✅ <b>Mana siz so'ragan audio!</b>\n\n🤖 <b>Bot:</b> @{bot_username}"
 
-            # Audio ostiga "To'liq versiyani topish" tugmasini qo'shamiz
             full_markup = InlineKeyboardMarkup()
             btn_full = InlineKeyboardButton("🔍 To'liq versiyasini topish (Full MP3)", callback_data="dl_full")
             full_markup.add(btn_full)
@@ -115,9 +112,9 @@ def process_download(call):
         except Exception:
             bot.send_message(chat_id, "❌ Audioni ajratishda xatolik bo'ldi.")
 
-    # 3. AUDIOGA ULANIB TO'LIQ MUSIQANI SHAZAM ORQALI TOPISH
+    # 3. TO'LIQ MUSIQANI TOPISH
     elif call.data == "dl_full":
-        bot.send_message(chat_id, "🔍 <b>Qo'shiq Shazam orqali tahlil qilinmoqda, kuting...</b>", parse_mode="HTML")
+        bot.send_message(chat_id, "🔍 <b>Qo'shiq Shazam orqali tahlil qilinmoqda...</b>", parse_mode="HTML")
         
         temp_audio_opts = {'format': 'bestaudio/best', 'outtmpl': f'downloads/{chat_id}_shazam.%(ext)s', 'quiet': True}
         try:
