@@ -6,7 +6,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# 1. Render serverini o'chib qolmasligi uchun HTTP server
+# 1. Render serverini uyg'oq tutish uchun HTTP Server
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -21,7 +21,7 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # --------------------------------------------------
-# IMPORTANT: Bu yerga BotFather'dan olgan TO'LIQ tokeningizni qo'ying!
+# BUYERGA OZINGIZNING BOTFATHER'DAN OLGAN TOKENINGIZNI YOZING!
 BOT_TOKEN = "8766383241:AAE2qEIj-zjEvhKV6OoOg9WKAbQzevPrrlM"  
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -67,6 +67,7 @@ def custom_search(message):
     search_query = f"ytsearch1:{query_text} full audio"
     download_full_by_query(chat_id, search_query, status_msg.message_id, bot_username)
 
+# START BUYRUG'I
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
     bot.reply_to(
@@ -76,6 +77,7 @@ def start_cmd(message):
         parse_mode="HTML"
     )
 
+# HAVOLALARNI QABUL QILISH
 @bot.message_handler(func=lambda message: message.text and ("http://" in message.text or "https://" in message.text))
 def handle_link(message):
     url = message.text.strip()
@@ -88,6 +90,7 @@ def handle_link(message):
 
     bot.reply_to(message, "📥 <b>Formatni tanlang:</b>", reply_markup=markup, parse_mode="HTML")
 
+# TUGMALARNI ISHLATISH
 @bot.callback_query_handler(func=lambda call: call.data in ["dl_video", "dl_audio", "dl_full"])
 def process_download(call):
     chat_id = call.message.chat.id
